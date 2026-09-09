@@ -1,6 +1,6 @@
 {
   "name": "dsh-wechat-notice",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "微信通知合一插件：企业微信群机器人 + 个人微信直连（weixin-agent-sdk）双通道，回合结束 / 审批请求 / Agent 出错时按自定义模板推送，设置页 Tab 切换双通道配置。WeCom group robot + personal WeChat direct notifier for DeepSeek Harness.",
   "author": "SimonTigers",
   "license": "MIT",

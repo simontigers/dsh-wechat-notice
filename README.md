@@ -61,7 +61,7 @@ DeepSeek Harness（DSH）微信通知合一插件：**企业微信群机器人 +
 ## 安装
 
 ```bash
-dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.5.1
+dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.5.2
 ```
 
 本地开发：
