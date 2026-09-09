@@ -27,6 +27,8 @@ DeepSeek Harness（DSH）微信通知合一插件：**企业微信群机器人 +
 
 - **回合结束（成功）** / **回合异常结束**：同一会话短时间多次回合结束做防抖（默认 10s，只推最后一条）
 - **审批请求**：需要你批准工具调用时
+- **用户提问**：agent 向你提问等待回答时推送（`ask_user_question` 与计划批准都走此通道；
+  以 cordis waterfall 监听器旁听 `user-questions/request`，透传请求不影响 GUI 答题流程）
 - **Agent 出错**：agent 执行链路报错时（按 agent + 错误内容去重）
 
 事件开关为双通道全局；某类事件关闭后两个通道都不推。
@@ -61,7 +63,7 @@ DeepSeek Harness（DSH）微信通知合一插件：**企业微信群机器人 +
 ## 安装
 
 ```bash
-dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.5.2
+dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.6.0
 ```
 
 本地开发：

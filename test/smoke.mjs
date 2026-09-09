@@ -201,6 +201,35 @@ await sleep(80);
 assert(sentMessages[sentMessages.length - 1].includes("boom-测试"), "agent/error 微信模板渲染");
 assert(wecomCalls()[wecomCalls().length - 1].body.text.content.includes("boom-测试"), "agent/error 企业微信模板渲染");
 
+// ---- 9b. user-questions/request waterfall 旁听（「提问」不走 session/event 总线）
+const qRequest = {
+  questions: [{ id: "q-1", question: "采用方案 A 还是方案 B？", options: [{ label: "方案 A" }, { label: "方案 B" }] }],
+  agent: { id: "agent-1", session },
+};
+const wcBeforeQ = wecomCalls().length;
+const smBeforeQ = sentMessages.length;
+let nextCalled = false;
+const qResults = [];
+for (const h of listeners["user-questions/request"] ?? []) {
+  qResults.push(h(qRequest, () => { nextCalled = true; return "answer-1"; }));
+}
+await sleep(80);
+assert((listeners["user-questions/request"] ?? []).length >= 1, "user-questions/request 监听器已注册");
+assert(nextCalled && qResults.every((r) => r === "answer-1"), "waterfall next() 被调用且返回值透传（不否决提问流程）");
+assert(sentMessages.length === smBeforeQ + 1 && sentMessages[sentMessages.length - 1].includes("采用方案 A 还是方案 B"), "提问微信推送");
+assert(wecomCalls().length === wcBeforeQ + 1 && wecomCalls()[wecomCalls().length - 1].body.text.content.includes("可选：方案 A / 方案 B"), "提问企业微信推送（含选项）");
+
+// question 事件开关关闭 → 不推送但 next 仍透传
+const qOffSaved = (await callApi("save", { config: { ...draft, events: { ...draft.events, question: false } } })).value;
+assert(qOffSaved.config.events.question === false, "save question 事件开关");
+let nextCalled2 = false;
+for (const h of listeners["user-questions/request"] ?? []) {
+  h(qRequest, () => { nextCalled2 = true; return "answer-2"; });
+}
+await sleep(80);
+assert(nextCalled2 && sentMessages.length === smBeforeQ + 1 && wecomCalls().length === wcBeforeQ + 1, "question 关闭：不推送但提问流程不受影响");
+await callApi("save", { config: draft }); // 恢复
+
 // ---- 10. envelope 信封签名兼容
 for (const h of listeners["session/event"]) h({ session, event: { type: "turn/end", seq: 99, data: { reason: { kind: "completed" } } } });
 await sleep(450);
