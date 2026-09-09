@@ -86,6 +86,7 @@ const { apply } = await import("../lib/index.js");
 
 const routes = [];
 const listeners = {};
+const registrations = [];
 const logs = [];
 const effects = [];
 const ctx = {
@@ -95,7 +96,12 @@ const ctx = {
   webRuntime: { trustedHosts: [] },
   effect: (fn, label) => (effects.push({ fn, label }), fn),
   provide: (n, s) => (ctx[n] = s),
-  on: (event, handler) => ((listeners[event] ??= []).push(handler), () => {}),
+  on: (event, handler, options) => {
+    const hooks = (listeners[event] ??= []);
+    if (options?.prepend) hooks.unshift(handler); else hooks.push(handler); // 尊重 cordis 语义
+    registrations.push({ event, options: options ?? null });
+    return () => {};
+  },
 };
 
 apply(ctx);
@@ -215,6 +221,8 @@ for (const h of listeners["user-questions/request"] ?? []) {
 }
 await sleep(80);
 assert((listeners["user-questions/request"] ?? []).length >= 1, "user-questions/request 监听器已注册");
+const uqReg = registrations.find((r) => r.event === "user-questions/request");
+assert(uqReg?.options?.prepend === true && uqReg?.options?.global === true, "（链序）prepend+global 注册——真实宿主中必须先于 GUI 转发器执行");
 assert(nextCalled && qResults.every((r) => r === "answer-1"), "waterfall next() 被调用且返回值透传（不否决提问流程）");
 assert(sentMessages.length === smBeforeQ + 1 && sentMessages[sentMessages.length - 1].includes("采用方案 A 还是方案 B"), "提问微信推送");
 assert(wecomCalls().length === wcBeforeQ + 1 && wecomCalls()[wecomCalls().length - 1].body.text.content.includes("可选：方案 A / 方案 B"), "提问企业微信推送（含选项）");
