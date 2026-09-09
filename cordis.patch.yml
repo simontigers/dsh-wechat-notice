@@ -1,0 +1,9 @@
+# dsh-wechat-notice bundle patch
+#
+# Mounts the merged WeChat notice plugin (WeCom group robot + personal WeChat
+# direct) into the profile loader. `name` resolves from the profile
+# node_modules; the client half is served by the host at
+# /plugins/dsh-wechat-notice/client.js.
+- insert:
+    - id: dsh-wechat-notice
+      name: 'dsh-wechat-notice'
