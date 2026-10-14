@@ -57,10 +57,24 @@ DeepSeek Harness（DSH）微信通知合一插件：**企业微信群机器人 +
 ## 检查更新
 
 设置页内置「检查更新」：按 profile 依赖声明判断安装来源 ——
-`github:` 安装比较 GitHub tags（主机网络不通时浏览器端兜底拉取）、`link:` 本地安装给出重建提示。
+`github:` 安装比较 GitHub tags（主机网络不通时浏览器端兜底拉取）、npm registry 安装（registry 模式）与 `link:` 本地安装给出对应提示。
 磁盘已装新版但进程还是旧代码时，显示「重启 DSH 后生效」横幅。
 
 ## 安装
+
+npm（推荐，无需 SSH / 代理）：
+
+```bash
+dsh plugin --profile web add dsh-wechat-notice
+```
+
+或指定版本：
+
+```bash
+dsh plugin --profile web add dsh-wechat-notice@0.7.0
+```
+
+GitHub（备选）：
 
 ```bash
 dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.7.0
