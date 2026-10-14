@@ -7,6 +7,7 @@ process.env.OPENCLAW_STATE_DIR = "/tmp/dsh-wechat-notice-test-home/openclaw-stat
 
 import { mkdirSync, writeFileSync } from "node:fs";
 import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
+import os from "node:os";
 
 // ---- 预置旧版插件 store（迁移数据源）：wecom 已停用（enabled=false 必须保留！）、weixin 启用
 mkdirSync(process.env.DSH_HOME + "/wecom-notice", { recursive: true });
@@ -236,6 +237,43 @@ for (const h of listeners["user-questions/request"] ?? []) {
 }
 await sleep(80);
 assert(nextCalled2 && sentMessages.length === smBeforeQ + 1 && wecomCalls().length === wcBeforeQ + 1, "question 关闭：不推送但提问流程不受影响");
+await callApi("save", { config: draft }); // 恢复
+
+// ---- 9c. 来源尾注（source.enabled / source.text + {hostname}/{ip} 占位符 + 关闭剔除整行）
+const cur = (await callApi("get", {})).value.config;
+assert(cur.source?.enabled === true && cur.source?.text === "", "normalize 补默认 source（enabled=true, text 空）");
+assert((cur.channels.weixin.templates.turnEndBody ?? "").includes("{source}") && !(cur.channels.weixin.templates.turnEndBody ?? "").includes("DeepSeek Harness"), "旧模板迁移：尾注文本 → {source} 占位符");
+
+let seq9 = 4200;
+const fireTurn = async () => { for (const h of listeners["session/event"]) h(session, { type: "turn/end", seq: seq9++, data: { reason: { kind: "completed" } } }); await sleep(450); };
+const weixinBody = () => sentMessages[sentMessages.length - 1] ?? "";
+const wecomBody = () => wecomCalls()[wecomCalls().length - 1]?.body?.text?.content ?? "";
+
+let wc9 = wecomCalls().length, sm9 = sentMessages.length;
+await fireTurn();
+assert(sentMessages.length === sm9 + 1 && wecomCalls().length === wc9 + 1, "9c: 默认来源开启，双通道推送");
+const hostName = os.hostname();
+assert(weixinBody().includes("🤖 来源     ·  DeepSeek Harness · " + hostName + "("), "默认来源文本 = DeepSeek Harness · 主机名(IP)（weixin）");
+assert(wecomBody().includes("🤖 来源     ·  DeepSeek Harness · " + hostName + "("), "默认来源文本（wecom）");
+
+await callApi("save", { config: { ...draft, source: { enabled: true, text: "我的推送助手" } } });
+sm9 = sentMessages.length;
+await fireTurn();
+assert(weixinBody().includes("🤖 来源     ·  我的推送助手") && !weixinBody().includes(hostName), "自定义来源文本生效（不附加主机信息）");
+
+await callApi("save", { config: { ...draft, source: { enabled: true, text: "{hostname}@{ip}" } } });
+sm9 = sentMessages.length;
+await fireTurn();
+assert(weixinBody().includes(hostName + "@") && !weixinBody().includes("{hostname}") && !weixinBody().includes("{ip}"), "占位符 {hostname}/{ip} 渲染");
+
+await callApi("save", { config: { ...draft, source: { enabled: false, text: "" } } });
+sm9 = sentMessages.length;
+await fireTurn();
+const srcOffWeixin = weixinBody();
+const srcOffWecom = wecomBody();
+assert(!srcOffWeixin.includes("🤖") && !srcOffWeixin.includes("来源") && !srcOffWeixin.includes("DeepSeek Harness"), "来源关闭：weixin 尾注整行剔除");
+assert(!srcOffWecom.includes("🤖") && !srcOffWecom.includes("来源"), "来源关闭：wecom 尾注整行剔除");
+assert(!srcOffWeixin.trimEnd().endsWith("┈") && !srcOffWecom.trimEnd().endsWith("┈"), "来源关闭：无悬挂分隔线");
 await callApi("save", { config: draft }); // 恢复
 
 // ---- 10. envelope 信封签名兼容
