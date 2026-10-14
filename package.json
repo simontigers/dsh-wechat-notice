@@ -10,6 +10,9 @@
   },
   "homepage": "https://github.com/simontigers/dsh-wechat-notice#readme",
   "bugs": "https://github.com/simontigers/dsh-wechat-notice/issues",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "prepublishOnly": "rm -rf /tmp/dsh-wechat-notice-test-home && DSH_HOME=/tmp/dsh-wechat-notice-test-home node test/smoke.mjs",
     "test": "rm -rf /tmp/dsh-wechat-notice-test-home && DSH_HOME=/tmp/dsh-wechat-notice-test-home node test/smoke.mjs"
