@@ -14,7 +14,7 @@
 由 `dsh-wecom-notice`（v0.4.3）与 `dsh-weixin-notice`（v0.3.3）合并而来（v0.5.0）。设置页用 tab 区分两通道 + 共享配置。
 
 - GitHub：`git@github.com:simontigers/dsh-wechat-notice.git`（分支 `main`，发版用 tag `vX.Y.Z`）
-- 当前版本：见 `package.json`（v0.7.0，2026-09）
+- 当前版本：见 `package.json`（v0.8.0，2026-10）
 
 ## 2. 架构：插件有两半，加载机制完全不同（最重要）
 
@@ -39,7 +39,7 @@ dsh_wechat_notice/
 ├── cordis.patch.yml      # composition 注入点
 ├── lib/index.js          # 宿主半（~1380 行），分区见下
 ├── lib/client.js         # UI 半（~945 行）：WechatSection 组件 + zh/en locale
-├── test/smoke.mjs        # 冒烟：67 项断言，全离线（mock fetch + fake SDK）
+├── test/smoke.mjs        # 冒烟：69 项断言，全离线（mock fetch + fake SDK）
 ├── test/render.mjs       # SSR 渲染回归（需 react，缺失时优雅 skip）
 └── README.md
 ```
@@ -53,7 +53,7 @@ dsh_wechat_notice/
 | 发送 | `pushText`（SDK bot.sendMessage → 失败含 context_token 时 `sendViaPersistedToken` → 双失败设聊天窗口引导 + `notifyTokenExpiredViaWecom` 兜底，每 episode 一次）；**`sendViaPersistedToken` 必须检查响应体 `ret`/`errcode`（见 §6 假成功）** |
 | 模板 | `WECOM_TEMPLATES` / `WEIXIN_TEMPLATES`（各 10 key：turnEnd/turnEndFail/approval/question/error 的 Title+Body）；`renderWecomText`（单 `\n` 换行，1900 字节预算）/ `renderWeixinText`（`\n+`→`\n\n` 规范化，2600 字符预算）；`buildNoticeVars` / `longTextOf` / `templatesFor` / `questionsTextOf` / **`sourceTextOf`（来源尾注：text 支持占位符 {hostname}/{ip}，空=「DeepSeek Harness · 主机名(IP)」，enabled=false → stripSourceTail 剔除尾注行+紧邻分隔线）** / `localEndpoint`（hostname+首非回环 IPv4，模块级缓存） |
 | 事件 | `wireEvents`：`session/event`（turn/end → 防抖 scheduleTurnPush；approval/asked）、`agent/error`（seenOnce 去重）、**`user-questions/request` waterfall 旁听（`{ global: true, prepend: true }`，见 §5）** |
-| API | `buildApi`：`status, loginStart, loginStatus, loginCancel, logout, get, save, test, checkUpdate`（全 POST，路径前缀 `/wechat-notice/api`，trustedHost 校验） |
+| API | `buildApi`：`status, loginStart, loginStatus, loginCancel, logout, get, save, test, checkUpdate`（全 POST，路径前缀 `/wechat-notice/api`）。**来源验证 `connectionIsTrusted`**：优先 `ctx.get("connection").isTrusted(req)`（DSH ≥0.2.1-rc.2，宿主统一 fence），旧宿主回退本地 `isTrustedApiRequest` + `webRuntime.trustedHosts`——**connection 不写进 inject（必选声明会让旧宿主加载失败）** |
 | 服务 | `ctx.provide`：`wechatNotice`、`wecomNotice`（wecom 通道别名，禁用时 throw）、`weixinNotice` |
 
 ### lib/client.js 内部分区
@@ -118,7 +118,7 @@ node --check lib/index.js && node --check lib/client.js
 
 # 2. 冒烟（必须先删测试 home，legacy 迁移只在 store 缺失时跑一次）
 rm -rf /tmp/dsh-wechat-notice-test-home
-DSH_HOME=/tmp/dsh-wechat-notice-test-home node test/smoke.mjs   # 期望 67 ok，0 FAIL
+DSH_HOME=/tmp/dsh-wechat-notice-test-home node test/smoke.mjs   # 期望 69 ok，0 FAIL
 
 # 3. SSR 渲染回归（改 client.js 后必跑）
 cd test && ln -sfn /home/hu.sima/tmp/test_dsh/.render-test/node_modules ./node_modules && node render.mjs; rm -f node_modules
@@ -145,7 +145,7 @@ cd ~/.dsh/profiles/web && sed -i 's|dsh-wechat-notice#v旧|dsh-wechat-notice#v�
 
 ## 9. 测试要点
 
-### test/smoke.mjs（67 项断言，全离线）
+### test/smoke.mjs（69 项断言，全离线）
 
 - 环境：`DSH_HOME=/tmp/dsh-wechat-notice-test-home`（每次跑前 `rm -rf`）；fake cordis ctx（`effect/provide/on/webServer.register/webRuntime.trustedHosts/logger`，**fake `on` 尊重 `options.prepend` 语义**并记录 registrations）
 - `globalThis.fetch` 拦截：模拟网关轮询（捕获 token）、wecom webhook（记录 `wecomCalls()`）、sendmessage（默认 `{ret:0}`，可注入失败）
@@ -189,4 +189,5 @@ cd ~/.dsh/profiles/web && sed -i 's|dsh-wechat-notice#v旧|dsh-wechat-notice#v�
 | v0.6.0 | 新增「用户提问」事件（waterfall 旁听 + `{questions}` 占位符 + 模板 + 开关） |
 | v0.6.1 | 提问监听 prepend 到链首（GUI 转发器不调 next() 导致内层不可达） |
 | v0.6.2 | 深色模式选中 tab 文字不可读（brand-primary 反转变量配对修复） |
-| v0.7.0 | 来源尾注可配置：`source{enabled,text}` + `{source}` 占位符（normalize 时把旧字面 DeepSeek Harness 幂等迁移）+ {hostname}/{ip} 占位符 + 关闭时整行剔除 |
+| v0.7.0 | 来源尾注可配置：`source{enabled,text}` + `{source}` 占位符（normalize 时把旧字面 DeepSeek Harness 幂等迁移）+ {hostname}/{ip} 占位符 + 关闭时整行剔除；发布 npm |
+| v0.8.0 | 适配 DSH 0.2.1-rc.2 架构重构（webRuntime 移除）：来源验证迁到 `connection.isTrusted`，保留 webRuntime 回退，新旧宿主双兼容 |

@@ -95,6 +95,12 @@ const ctx = {
   logger: { info: (m) => logs.push("info: " + m), warn: (m) => logs.push("warn: " + m) },
   webServer: { register: (def) => (routes.push(def), () => {}) },
   webRuntime: { trustedHosts: [] },
+  // 模拟 DSH ≥0.2.1-rc.2 的 connection 服务（isTrusted 只放行 loopback host，带调用计数）
+  connection: {
+    trustedHosts: [],
+    isTrustedCalls: 0,
+    isTrusted: (req) => (ctx.connection.isTrustedCalls++, String((req.headers ?? {}).host ?? "") === "127.0.0.1:3080"),
+  },
   effect: (fn, label) => (effects.push({ fn, label }), fn),
   provide: (n, s) => (ctx[n] = s),
   on: (event, handler, options) => {
@@ -119,12 +125,16 @@ const assert = (cond, label) => {
 // ---- 工具：调用 HTTP 路由
 import { EventEmitter } from "node:events";
 function callApi(method, payload) {
+  return callApiVia("127.0.0.1:3080", method, payload);
+}
+
+function callApiVia(host, method, payload) {
   return new Promise((resolve) => {
     const req = new EventEmitter();
     req.method = "POST";
     req.url = "/wechat-notice/api/" + method;
-    req.headers = { host: "127.0.0.1:3080", origin: "http://127.0.0.1:3080" };
-    const res = { code: 0, body: "", writeHead(c) { res.code = c; }, end(b) { res.body = String(b ?? ""); resolve(JSON.parse(res.body)); } };
+    req.headers = { host, origin: "http://" + host };
+    const res = { code: 0, body: "", writeHead(c) { res.code = c; }, end(b) { res.body = String(b ?? ""); resolve({ ...JSON.parse(res.body), code: res.code }); } };
     const route = routes[0];
     if (!route) { resolve({ ok: false, error: "no route" }); return; }
     void route.handler(req, res);
@@ -275,6 +285,14 @@ assert(!srcOffWeixin.includes("🤖") && !srcOffWeixin.includes("来源") && !sr
 assert(!srcOffWecom.includes("🤖") && !srcOffWecom.includes("来源"), "来源关闭：wecom 尾注整行剔除");
 assert(!srcOffWeixin.trimEnd().endsWith("┈") && !srcOffWecom.trimEnd().endsWith("┈"), "来源关闭：无悬挂分隔线");
 await callApi("save", { config: draft }); // 恢复
+
+// ---- 9d. 来源验证（DSH ≥0.2.1-rc.2 connection 服务路径）
+assert(ctx.connection.isTrustedCalls > 0, "API 请求走 connection.isTrusted（新宿主路径）");
+{
+  const spy = ctx.connection.isTrustedCalls;
+  const bad = await callApiVia("evil.example:3080", "get", {});
+  assert(bad.code === 403 && ctx.connection.isTrustedCalls === spy + 1, "非受信 host 被 connection fence 拒绝 403");
+}
 
 // ---- 10. envelope 信封签名兼容
 for (const h of listeners["session/event"]) h({ session, event: { type: "turn/end", seq: 99, data: { reason: { kind: "completed" } } } });
