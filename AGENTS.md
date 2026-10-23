@@ -14,7 +14,7 @@
 由 `dsh-wecom-notice`（v0.4.3）与 `dsh-weixin-notice`（v0.3.3）合并而来（v0.5.0）。设置页用 tab 区分两通道 + 共享配置。
 
 - GitHub：`git@github.com:simontigers/dsh-wechat-notice.git`（分支 `main`，发版用 tag `vX.Y.Z`）
-- 当前版本：见 `package.json`（v0.8.0，2026-10）
+- 当前版本：见 `package.json`（v0.9.0，2026-10）
 
 ## 2. 架构：插件有两半，加载机制完全不同（最重要）
 
@@ -53,7 +53,7 @@ dsh_wechat_notice/
 | 发送 | `pushText`（SDK bot.sendMessage → 失败含 context_token 时 `sendViaPersistedToken` → 双失败设聊天窗口引导 + `notifyTokenExpiredViaWecom` 兜底，每 episode 一次）；**`sendViaPersistedToken` 必须检查响应体 `ret`/`errcode`（见 §6 假成功）** |
 | 模板 | `WECOM_TEMPLATES` / `WEIXIN_TEMPLATES`（各 10 key：turnEnd/turnEndFail/approval/question/error 的 Title+Body）；`renderWecomText`（单 `\n` 换行，1900 字节预算）/ `renderWeixinText`（`\n+`→`\n\n` 规范化，2600 字符预算）；`buildNoticeVars` / `longTextOf` / `templatesFor` / `questionsTextOf` / **`sourceTextOf`（来源尾注：text 支持占位符 {hostname}/{ip}，空=「DeepSeek Harness · 主机名(IP)」，enabled=false → stripSourceTail 剔除尾注行+紧邻分隔线）** / `localEndpoint`（hostname+首非回环 IPv4，模块级缓存） |
 | 事件 | `wireEvents`：`session/event`（turn/end → 防抖 scheduleTurnPush；approval/asked）、`agent/error`（seenOnce 去重）、**`user-questions/request` waterfall 旁听（`{ global: true, prepend: true }`，见 §5）** |
-| API | `buildApi`：`status, loginStart, loginStatus, loginCancel, logout, get, save, test, checkUpdate`（全 POST，路径前缀 `/wechat-notice/api`）。**来源验证 `connectionIsTrusted`**：优先 `ctx.get("connection").isTrusted(req)`（DSH ≥0.2.1-rc.2，宿主统一 fence），旧宿主回退本地 `isTrustedApiRequest` + `webRuntime.trustedHosts`——**connection 不写进 inject（必选声明会让旧宿主加载失败）** |
+| API | `buildApi`：`status, loginStart, loginStatus, loginCancel, logout, get, save, test, checkUpdate`（全 POST，路径前缀 `/wechat-notice/api`）。**来源验证 `connectionIsTrusted`**：`connection.isTrusted(req)`（DSH ≥0.2.1-rc.2 宿主统一 fence）。**connection 必须写进 inject**（`["webServer","connection"]`，与宿主内置插件同款）——插件 ctx 是子 ctx，不声明就读不到服务，静默回退后 LAN 访问被仅放行 loopback 的旧路径 403（v0.8.0 血泪）。读取顺序 `ctx.connection → ctx.get → 旧宿主回退`，旧宿主回退仅作理论兼容（inject 声明实际要求 ≥0.2.1-rc.2） |
 | 服务 | `ctx.provide`：`wechatNotice`、`wecomNotice`（wecom 通道别名，禁用时 throw）、`weixinNotice` |
 
 ### lib/client.js 内部分区
@@ -190,4 +190,5 @@ cd ~/.dsh/profiles/web && sed -i 's|dsh-wechat-notice#v旧|dsh-wechat-notice#v�
 | v0.6.1 | 提问监听 prepend 到链首（GUI 转发器不调 next() 导致内层不可达） |
 | v0.6.2 | 深色模式选中 tab 文字不可读（brand-primary 反转变量配对修复） |
 | v0.7.0 | 来源尾注可配置：`source{enabled,text}` + `{source}` 占位符（normalize 时把旧字面 DeepSeek Harness 幂等迁移）+ {hostname}/{ip} 占位符 + 关闭时整行剔除；发布 npm |
-| v0.8.0 | 适配 DSH 0.2.1-rc.2 架构重构（webRuntime 移除）：来源验证迁到 `connection.isTrusted`，保留 webRuntime 回退，新旧宿主双兼容 |
+| v0.8.0 | 适配 DSH 0.2.1-rc.2 架构重构（webRuntime 移除）：来源验证迁到 `connection.isTrusted`（但 inject 未声明 connection，LAN 访问 403） |
+| v0.9.0 | 修复 v0.8.0：connection 写进 inject（宿主内置插件同款），LAN 访问恢复；要求 DSH ≥0.2.1-rc.2 |

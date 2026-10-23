@@ -77,7 +77,7 @@ dsh plugin --profile web add dsh-wechat-notice@0.7.0
 GitHub（备选）：
 
 ```bash
-dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.8.0
+dsh plugin --profile web add github:simontigers/dsh-wechat-notice#v0.9.0
 ```
 
 本地开发：
